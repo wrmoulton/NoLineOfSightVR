@@ -97,3 +97,10 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# --- Baked lighting outputs (do not commit) ---
+Assets/**/LightingData.asset
+Assets/**/Lightmap-*.*
+Assets/**/ReflectionProbe-*.*
+Assets/**/*Lightmap*.*
+Assets/**/*_Light_*.*
