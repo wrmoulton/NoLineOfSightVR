@@ -2,18 +2,23 @@ using UnityEngine;
 
 public class TrapZone : MonoBehaviour
 {
-    public Transform respawnPoint;
-
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Player"))
         {
-            CharacterController cc = other.GetComponent<CharacterController>();
+            if (GameManager.Instance.currentRespawnPoint == null)
+            {
+                Debug.LogWarning("No respawn point set.");
+                return;
+            }
+
+            CharacterController cc = other.GetComponentInParent<CharacterController>();
 
             if (cc != null)
                 cc.enabled = false;
 
-            other.transform.root.position = respawnPoint.position;
+            Transform playerRoot = other.transform.root;
+            playerRoot.position = GameManager.Instance.currentRespawnPoint.position;
 
             if (cc != null)
                 cc.enabled = true;
