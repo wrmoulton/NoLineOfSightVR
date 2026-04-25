@@ -91,7 +91,6 @@ public class GameManager : MonoBehaviour
             if (nextCheckpointIndex > totalCheckpoints)
             {
                 Debug.Log("All checkpoints completed!");
-                TriggerWin();
             }
 
             return true;
@@ -119,15 +118,6 @@ public class GameManager : MonoBehaviour
             pcGameOverCanvas.SetActive(true);
 
         Debug.Log("Game Over!");
-    }
-
-    private void TriggerWin()
-    {
-        gameOver = true;
-
-        Debug.Log("You Win!");
-
-        // Later  show win canvases here too.
     }
 
     private void UpdateTimerUI()

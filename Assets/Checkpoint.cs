@@ -17,6 +17,8 @@ public class Checkpoint : MonoBehaviour
             {
                 activated = true;
                 Debug.Log("Checkpoint " + checkpointNumber + " collected.");
+                gameObject.SetActive(false);
+
             }
         }
     }
