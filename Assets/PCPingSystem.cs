@@ -6,81 +6,127 @@ public class PCPingSystem : MonoBehaviour
     [Header("Settings")]
     public Camera pcCamera;
     public GameObject pingPrefab;
-    public float pingDuration = 3f;
-    public float pingYPosition = 0f; 
-    public float pingPCYPosition = 1f; 
-    public float pingPCScale = 1f; // Scale multiplier for the ping
-    public LayerMask raycastLayerMask = ~0; // All layers by default
 
-    private GameObject currentPing;
+    [Header("Ping Timing")]
+    public float pingDuration = 20f;
+
+    [Header("VR Ping - Compass Target")]
+    public float pingYPosition = 20f;
+    public float pingVRScale = 1f;
+
+    [Header("PC Ping - Big Visual Marker")]
+    public float pingPCYPosition = 50f;
+    public float pingPCScale = 9f;
+
+    [Header("Raycast")]
+    public LayerMask raycastLayerMask = ~0;
+
+    private GameObject currentVRPing;
+    private GameObject currentPCPing;
 
     void Update()
     {
-        // Check for left mouse click
         if (Mouse.current != null && Mouse.current.leftButton.wasPressedThisFrame)
         {
-            if (pcCamera == null) return;
-
-            Vector3 mousePos = Mouse.current.position.ReadValue();
-            
-            // Handle multiple displays
-            if (Display.displays.Length > 1)
-            {
-                Vector3 relativeMousePos = Display.RelativeMouseAt(mousePos);
-                if (relativeMousePos != Vector3.zero)
-                {
-                    // relativeMousePos.z contains the display index
-                    if ((int)relativeMousePos.z == pcCamera.targetDisplay)
-                    {
-                        mousePos = new Vector3(relativeMousePos.x, relativeMousePos.y, 0);
-                    }
-                    else
-                    {
-                        // Click was on a different display
-                        return;
-                    }
-                }
-            }
-
-            Ray ray = pcCamera.ScreenPointToRay(mousePos);
-            if (Physics.Raycast(ray, out RaycastHit hit, 1000f, raycastLayerMask))
-            {
-                SpawnPing(hit.point);
-                SpawnDifferentPing(hit.point);
-            }
+            TryPlacePing();
         }
     }
 
-    void SpawnPing(Vector3 position)
+    private void TryPlacePing()
     {
-        // Keep X and Z from hit point, use fixed Y coordinate
+        if (pcCamera == null)
+            return;
+
+        Vector3 mousePos = Mouse.current.position.ReadValue();
+
+        // Handles multiple displays
+        if (Display.displays.Length > 1)
+        {
+            Vector3 relativeMousePos = Display.RelativeMouseAt(mousePos);
+
+            if (relativeMousePos != Vector3.zero)
+            {
+                if ((int)relativeMousePos.z == pcCamera.targetDisplay)
+                {
+                    mousePos = new Vector3(relativeMousePos.x, relativeMousePos.y, 0f);
+                }
+                else
+                {
+                    return;
+                }
+            }
+        }
+
+        Ray ray = pcCamera.ScreenPointToRay(mousePos);
+
+        if (Physics.Raycast(ray, out RaycastHit hit, 1000f, raycastLayerMask))
+        {
+            SpawnVRPing(hit.point);
+            SpawnPCPing(hit.point);
+        }
+    }
+
+    private void SpawnVRPing(Vector3 position)
+    {
         Vector3 pingPosition = new Vector3(position.x, pingYPosition, position.z);
         Quaternion pingRotation = Quaternion.Euler(-90f, 0f, 0f);
 
-        if (currentPing != null)
+        if (currentVRPing != null)
         {
-            Destroy(currentPing);
+            Destroy(currentVRPing);
+            PingTargetManager.Instance?.ClearPingTarget();
         }
+
+        currentVRPing = CreatePing(pingPosition, pingRotation, pingVRScale, "VR Ping");
+
+        if (currentVRPing != null)
+        {
+            PingTargetManager.Instance?.SetPingTarget(currentVRPing.transform);
+        }
+
+        CancelInvoke(nameof(ClearVRPing));
+        Invoke(nameof(ClearVRPing), pingDuration);
+    }
+
+    private void SpawnPCPing(Vector3 position)
+    {
+        Vector3 pingPosition = new Vector3(position.x, pingPCYPosition, position.z);
+        Quaternion pingRotation = Quaternion.identity;
+
+        if (currentPCPing != null)
+        {
+            Destroy(currentPCPing);
+        }
+
+        currentPCPing = CreatePing(pingPosition, pingRotation, pingPCScale, "PC Ping");
+
+        CancelInvoke(nameof(ClearPCPing));
+        Invoke(nameof(ClearPCPing), pingDuration);
+    }
+
+    private GameObject CreatePing(Vector3 position, Quaternion rotation, float scaleMultiplier, string objectName)
+    {
+        GameObject pingObject;
 
         if (pingPrefab != null)
         {
-            currentPing = Instantiate(pingPrefab, pingPosition, pingRotation);
-                currentPing.transform.localScale *= pingPCScale;
-            Destroy(currentPing, pingDuration);
+            pingObject = Instantiate(pingPrefab, position, rotation);
+            pingObject.name = objectName;
+            pingObject.transform.localScale *= scaleMultiplier;
         }
         else
         {
-            // Fallback if no prefab is assigned: create a primitive cylinder
-            currentPing = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-            currentPing.transform.position = pingPosition;
-            currentPing.transform.rotation = pingRotation;
-            currentPing.transform.localScale = new Vector3(1f, 5f, 1f);
-            
-            // Remove collider so it doesn't interfere with player movement
-            Destroy(currentPing.GetComponent<Collider>());
+            pingObject = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            pingObject.name = objectName;
+            pingObject.transform.position = position;
+            pingObject.transform.rotation = rotation;
+            pingObject.transform.localScale = new Vector3(1f, 5f, 1f) * scaleMultiplier;
 
-            // Try to make it look like a ping (e.g., yellow color)
-            Renderer rend = currentPing.GetComponent<Renderer>();
+            Collider col = pingObject.GetComponent<Collider>();
+            if (col != null)
+                Destroy(col);
+
+            Renderer rend = pingObject.GetComponent<Renderer>();
             if (rend != null)
             {
                 Material mat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
@@ -89,27 +135,28 @@ public class PCPingSystem : MonoBehaviour
                 mat.EnableKeyword("_EMISSION");
                 rend.material = mat;
             }
-
-            Destroy(currentPing, pingDuration);
         }
+
+        return pingObject;
     }
 
-    void SpawnDifferentPing(Vector3 position)
+    private void ClearVRPing()
     {
-        // Keep X and Z from hit point, use fixed Y coordinate
-        Vector3 pingPosition = new Vector3(position.x, pingPCYPosition, position.z);
-        Quaternion pingRotation = Quaternion.Euler(0f, 0f, 0f);
-
-        if (currentPing != null)
+        if (currentVRPing != null)
         {
-            Destroy(currentPing);
+            Destroy(currentVRPing);
+            currentVRPing = null;
         }
 
-        if (pingPrefab != null)
+        PingTargetManager.Instance?.ClearPingTarget();
+    }
+
+    private void ClearPCPing()
+    {
+        if (currentPCPing != null)
         {
-            currentPing = Instantiate(pingPrefab, pingPosition, pingRotation);
-            currentPing.transform.localScale *= pingPCScale;
-            Destroy(currentPing, pingDuration);
+            Destroy(currentPCPing);
+            currentPCPing = null;
         }
     }
 }
